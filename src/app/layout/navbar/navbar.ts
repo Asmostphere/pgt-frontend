@@ -1,7 +1,8 @@
-import { CommonModule } from '@angular/common';
-import { Component, signal, input, output } from '@angular/core';
+import { CommonModule, isPlatformBrowser } from '@angular/common';
+import { Component, signal, input, output, inject, Inject, PLATFORM_ID } from '@angular/core';
 import { Router, ActivatedRoute, NavigationEnd, RouterModule } from '@angular/router';
 import { filter } from 'rxjs';
+import { AuthService } from '../../core/services/auth.service';
 export interface Breadcrumb {
   label: string;
   url: string;
@@ -21,7 +22,7 @@ export interface Breadcrumb {
   `]
 })
 export class Navbar {
-  userName = signal<string>('Diego M.');
+  authService = inject(AuthService);
   hasUnreadNotifications = signal<boolean>(true);
   isSettingsOpen = signal<boolean>(false);
   isDarkMode = signal<boolean>(false);
@@ -29,13 +30,12 @@ export class Navbar {
   private router = inject(Router);
   private activatedRoute = inject(ActivatedRoute);
 
-  // Recibe el estado abierto/cerrado del sidebar desde el layout
   sidebarOpen = input<boolean>(false);
-
-  // Emite la orden de toggle al layout
   toggleSidebar = output<void>();
+  constructor(@Inject(PLATFORM_ID) private platformId: Object) {}
 
   ngOnInit() {
+    this.checkInitialTheme();
     this.router.events.pipe(
       filter(event => event instanceof NavigationEnd)
     ).subscribe(() => {
@@ -75,6 +75,35 @@ export class Navbar {
       }
       if (route.firstChild) {
         this.buildBreadcrumbs(route.firstChild, url, breadcrumbs);
+      }
+    }
+  }
+  private checkInitialTheme() {
+    if (isPlatformBrowser(this.platformId)) {
+      const savedTheme = localStorage.getItem('theme');
+      
+      if (savedTheme === 'dark') {
+        this.setDarkMode(true);
+      } else if (savedTheme === 'light') {
+        this.setDarkMode(false);
+      } else {
+        // Si no hay preferencia guardada, usamos la preferencia del sistema operativo
+        const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+        this.setDarkMode(prefersDark);
+      }
+    }
+  }
+
+  private setDarkMode(isDark: boolean) {
+    this.isDarkMode.set(isDark);
+    
+    if (isPlatformBrowser(this.platformId)) {
+      if (isDark) {
+        document.documentElement.classList.add('dark');
+        localStorage.setItem('theme', 'dark');
+      } else {
+        document.documentElement.classList.remove('dark');
+        localStorage.setItem('theme', 'light');
       }
     }
   }
